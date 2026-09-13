@@ -14,6 +14,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 from app.db.base import Base
 from app.core.config import settings
 from app.models.room import Room
+from app.models.participant import Participant
 
 
 # this is the Alembic Config object, which provides
