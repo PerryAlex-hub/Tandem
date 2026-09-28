@@ -19,3 +19,8 @@ async def create_room(db: AsyncSession) -> Room:
     await db.commit()
     await db.refresh(new_room)
     return new_room
+
+
+async def get_room_by_code(db: AsyncSession, code: str) -> Room | None:
+    result = await db.execute(select(Room).where(Room.code == code))
+    return result.scalar_one_or_none()
