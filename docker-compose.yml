@@ -1,0 +1,6 @@
+services:
+  leetcode-api:
+    image: alfaarghya/alfa-leetcode-api:2.0.4
+    ports:
+      - "3000:3000"
+    restart: unless-stopped

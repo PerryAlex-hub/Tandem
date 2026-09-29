@@ -15,6 +15,8 @@ from app.db.base import Base
 from app.core.config import settings
 from app.models.room import Room
 from app.models.participant import Participant
+from app.models.problem_catalog import ProblemCatalog
+from app.models.problem import Problem
 
 
 # this is the Alembic Config object, which provides
