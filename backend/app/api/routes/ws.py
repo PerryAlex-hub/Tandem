@@ -1,12 +1,15 @@
 import uuid
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.connection_manager import manager
+from app.core.document_manager import document_manager
 from app.db.session import get_db
 from app.models.participant import Participant
+from app.ot.operations import parse_operation
 
 router = APIRouter(tags=["websocket"])
 
@@ -31,6 +34,13 @@ async def room_websocket(
         return
 
     await manager.connect(room_code, websocket)
+
+    doc = document_manager.get_or_create(room_code)
+    await websocket.send_json({
+        "type": "editor_state",
+        "payload": {"content": doc.content, "revision": doc.revision},
+    })
+
     await manager.broadcast(room_code, {
         "type": "presence",
         "payload": {"event": "join", "display_name": participant.display_name},
@@ -39,7 +49,24 @@ async def room_websocket(
     try:
         while True:
             data = await websocket.receive_json()
-            await manager.broadcast(room_code, data)
+
+            if data.get("type") == "editor_op":
+                try:
+                    op = parse_operation(data["payload"]["op"])
+                    base_revision = data["payload"]["base_revision"]
+                except (KeyError, ValidationError) as exc:
+                    await websocket.send_json({"type": "error", "payload": {"detail": str(exc)}})
+                    continue
+
+                doc = document_manager.get_or_create(room_code)
+                transformed_op, new_revision = doc.receive_op(base_revision, op)
+
+                await manager.broadcast(room_code, {
+                    "type": "editor_op",
+                    "payload": {"op": transformed_op.model_dump(), "revision": new_revision},
+                })
+            else:
+                await manager.broadcast(room_code, data)
     except WebSocketDisconnect:
         manager.disconnect(room_code, websocket)
         await manager.broadcast(room_code, {
