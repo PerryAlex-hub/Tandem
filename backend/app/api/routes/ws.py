@@ -5,8 +5,10 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.board_manager import board_manager
 from app.core.connection_manager import manager
 from app.core.document_manager import document_manager
+from app.crdt.objects import ObjectOp
 from app.db.session import get_db
 from app.models.participant import Participant
 from app.ot.operations import parse_operation
@@ -41,6 +43,12 @@ async def room_websocket(
         "payload": {"content": doc.content, "revision": doc.revision},
     })
 
+    board = board_manager.get_or_create(room_code)
+    await websocket.send_json({
+        "type": "whiteboard_state",
+        "payload": {"objects": board.get_all()},
+    })
+
     await manager.broadcast(room_code, {
         "type": "presence",
         "payload": {"event": "join", "display_name": participant.display_name},
@@ -49,8 +57,9 @@ async def room_websocket(
     try:
         while True:
             data = await websocket.receive_json()
+            message_type = data.get("type")
 
-            if data.get("type") == "editor_op":
+            if message_type == "editor_op":
                 try:
                     op = parse_operation(data["payload"]["op"])
                     base_revision = data["payload"]["base_revision"]
@@ -65,6 +74,22 @@ async def room_websocket(
                     "type": "editor_op",
                     "payload": {"op": transformed_op.model_dump(), "revision": new_revision},
                 })
+
+            elif message_type == "whiteboard_op":
+                try:
+                    op = ObjectOp(**data["payload"])
+                except (KeyError, ValidationError) as exc:
+                    await websocket.send_json({"type": "error", "payload": {"detail": str(exc)}})
+                    continue
+
+                board = board_manager.get_or_create(room_code)
+                resolved = board.apply_op(op)
+
+                await manager.broadcast(room_code, {
+                    "type": "whiteboard_op",
+                    "payload": resolved.model_dump(),
+                })
+
             else:
                 await manager.broadcast(room_code, data)
     except WebSocketDisconnect:
