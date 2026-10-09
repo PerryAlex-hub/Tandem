@@ -9,5 +9,6 @@ class ProblemOut(BaseModel):
     description_html: str
     example_testcases: str
     topic_tags: list
+    code_snippets: list
 
     model_config = ConfigDict(from_attributes=True)

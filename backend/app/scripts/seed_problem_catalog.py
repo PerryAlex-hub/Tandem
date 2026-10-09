@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import insert
 from app.db.session import AsyncSessionLocal
 from app.models.problem_catalog import ProblemCatalog
 
-LEETCODE_API_BASE = "http://127.0.0.1:3000"
+LEETCODE_API_BASE = "http://127.0.0.1:3001"
 PAGE_SIZE = 100
 
 

@@ -20,21 +20,22 @@ async def get_problem(db: AsyncSession, frontend_id: int) -> Problem | None:
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.get(
-            f"{settings.leetcode_api_base}/select",
+            f"{settings.leetcode_api_base}/select/raw",
             params={"titleSlug": catalog_entry.title_slug},
         )
         response.raise_for_status()
 
-    data = response.json()
+    data = response.json()["question"]
 
     problem = Problem(
         frontend_id=frontend_id,
         title_slug=data["titleSlug"],
-        title=data["questionTitle"],
+        title=data["title"],
         difficulty=data["difficulty"],
-        description_html=data["question"],
+        description_html=data["content"],
         example_testcases=data["exampleTestcases"],
         topic_tags=data["topicTags"],
+        code_snippets=data["codeSnippets"],
     )
     db.add(problem)
     await db.commit()

@@ -2,5 +2,17 @@ services:
   leetcode-api:
     image: alfaarghya/alfa-leetcode-api:2.0.4
     ports:
-      - "3000:3000"
+      - "3001:3000"
     restart: unless-stopped
+
+  piston:
+    image: ghcr.io/engineer-man/piston
+    privileged: true
+    ports:
+      - "2000:2000"
+    volumes:
+      - piston_data:/piston
+    restart: unless-stopped
+
+volumes:
+  piston_data:

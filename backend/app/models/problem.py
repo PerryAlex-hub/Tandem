@@ -14,3 +14,4 @@ class Problem(Base):
     description_html: Mapped[str] = mapped_column(Text)
     example_testcases: Mapped[str] = mapped_column(Text)
     topic_tags: Mapped[list] = mapped_column(JSON)
+    code_snippets: Mapped[list] = mapped_column(JSON)
