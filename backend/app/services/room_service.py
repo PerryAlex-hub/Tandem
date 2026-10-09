@@ -24,3 +24,8 @@ async def create_room(db: AsyncSession) -> Room:
 async def get_room_by_code(db: AsyncSession, code: str) -> Room | None:
     result = await db.execute(select(Room).where(Room.code == code))
     return result.scalar_one_or_none()
+
+
+async def set_current_problem(db: AsyncSession, room: Room, frontend_id: int) -> None:
+    room.current_problem_id = frontend_id
+    await db.commit()
