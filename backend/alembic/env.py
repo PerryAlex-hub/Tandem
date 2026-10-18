@@ -17,6 +17,7 @@ from app.models.room import Room
 from app.models.participant import Participant
 from app.models.problem_catalog import ProblemCatalog
 from app.models.problem import Problem
+from app.models.document_snapshot import DocumentSnapshot
 
 
 # this is the Alembic Config object, which provides

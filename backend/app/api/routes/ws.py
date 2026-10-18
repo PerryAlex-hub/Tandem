@@ -35,13 +35,13 @@ async def room_websocket(
 
     await manager.connect(room_code, websocket)
 
-    doc = await document_manager.get_or_create(room_code)
+    doc = await document_manager.get_or_create(room_code, db)
     await websocket.send_json({
         "type": "editor_sync",
         "payload": {"update": base64.b64encode(doc.get_update()).decode("ascii")},
     })
 
-    board = await board_manager.get_or_create(room_code)
+    board = await board_manager.get_or_create(room_code, db)
     await websocket.send_json({
         "type": "whiteboard_sync",
         "payload": {"update": base64.b64encode(board.get_update()).decode("ascii")},
