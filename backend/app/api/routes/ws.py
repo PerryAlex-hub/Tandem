@@ -1,17 +1,15 @@
+import base64
 import uuid
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
-from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.board_manager import board_manager
 from app.core.connection_manager import manager
 from app.core.document_manager import document_manager
-from app.crdt.objects import ObjectOp
 from app.db.session import get_db
 from app.models.participant import Participant
-from app.ot.operations import parse_operation
 
 router = APIRouter(tags=["websocket"])
 
@@ -37,16 +35,16 @@ async def room_websocket(
 
     await manager.connect(room_code, websocket)
 
-    doc = document_manager.get_or_create(room_code)
+    doc = await document_manager.get_or_create(room_code)
     await websocket.send_json({
-        "type": "editor_state",
-        "payload": {"content": doc.content, "revision": doc.revision},
+        "type": "editor_sync",
+        "payload": {"update": base64.b64encode(doc.get_update()).decode("ascii")},
     })
 
-    board = board_manager.get_or_create(room_code)
+    board = await board_manager.get_or_create(room_code)
     await websocket.send_json({
-        "type": "whiteboard_state",
-        "payload": {"objects": board.get_all()},
+        "type": "whiteboard_sync",
+        "payload": {"update": base64.b64encode(board.get_update()).decode("ascii")},
     })
 
     await manager.broadcast(room_code, {
@@ -59,35 +57,36 @@ async def room_websocket(
             data = await websocket.receive_json()
             message_type = data.get("type")
 
-            if message_type == "editor_op":
+            if message_type == "editor_update":
                 try:
-                    op = parse_operation(data["payload"]["op"])
-                    base_revision = data["payload"]["base_revision"]
-                except (KeyError, ValidationError) as exc:
+                    update_bytes = base64.b64decode(data["payload"]["update"])
+                except (KeyError, ValueError) as exc:
                     await websocket.send_json({"type": "error", "payload": {"detail": str(exc)}})
                     continue
 
-                doc = document_manager.get_or_create(room_code)
-                transformed_op, new_revision = doc.receive_op(base_revision, op)
+                doc = await document_manager.get_or_create(room_code)
+                doc.apply_update(update_bytes)
+                await document_manager.save(room_code)
 
                 await manager.broadcast(room_code, {
-                    "type": "editor_op",
-                    "payload": {"op": transformed_op.model_dump(), "revision": new_revision},
+                    "type": "editor_update",
+                    "payload": {"update": data["payload"]["update"]},
                 })
 
-            elif message_type == "whiteboard_op":
+            elif message_type == "whiteboard_update":
                 try:
-                    op = ObjectOp(**data["payload"])
-                except (KeyError, ValidationError) as exc:
+                    update_bytes = base64.b64decode(data["payload"]["update"])
+                except (KeyError, ValueError) as exc:
                     await websocket.send_json({"type": "error", "payload": {"detail": str(exc)}})
                     continue
 
-                board = board_manager.get_or_create(room_code)
-                resolved = board.apply_op(op)
+                board = await board_manager.get_or_create(room_code)
+                board.apply_update(update_bytes)
+                await board_manager.save(room_code)
 
                 await manager.broadcast(room_code, {
-                    "type": "whiteboard_op",
-                    "payload": resolved.model_dump(),
+                    "type": "whiteboard_update",
+                    "payload": {"update": data["payload"]["update"]},
                 })
 
             else:
