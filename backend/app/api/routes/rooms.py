@@ -5,9 +5,11 @@ from app.db.session import get_db
 from app.schemas.room import RoomOut, SetProblemRequest
 from app.schemas.participant import ParticipantJoin, ParticipantOut
 from app.schemas.problem import ProblemOut
+from app.schemas.submission import SubmitRequest, SubmissionResult
 from app.services.room_service import create_room, get_room_by_code, set_current_problem
 from app.services.participant_service import create_participant
 from app.services.problem_service import get_problem
+from app.services.submission_service import run_submission
 from app.core.connection_manager import manager
 
 router = APIRouter(prefix="/rooms", tags=["rooms"])
@@ -61,3 +63,25 @@ async def set_room_problem_endpoint(
     await manager.broadcast(code, {"type": "set_problem", "payload": problem_payload})
 
     return problem
+
+
+@router.post("/{code}/submit", response_model=SubmissionResult)
+async def submit_code_endpoint(
+    code: str,
+    payload: SubmitRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    room = await get_room_by_code(db, code)
+    if room is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Room not found")
+
+    if room.current_problem_id is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Room has no problem selected")
+
+    problem = await get_problem(db, room.current_problem_id)
+
+    result = await run_submission(problem, payload.code)
+
+    await manager.broadcast(code, {"type": "submission_result", "payload": result})
+
+    return result

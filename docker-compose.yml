@@ -12,6 +12,8 @@ services:
       - "2000:2000"
     volumes:
       - piston_data:/piston
+    environment:
+      - PISTON_RUN_TIMEOUT=8000
     restart: unless-stopped
 
 volumes:
